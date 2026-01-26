@@ -1,0 +1,183 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# SECTION 1: [Unit] - Identity and Dependencies
+# ═══════════════════════════════════════════════════════════════════════════
+[Unit]
+
+Description=Museum Exhibit Camera Button
+# ┗━━ Human-readable name. Shows up in:
+#     • systemctl status
+#     • journalctl logs
+#     • Error messages
+#     Think of it like a comment, but one the system actually uses.
+
+After=multi-user.target
+# ┗━━ "Don't start me until multi-user.target is reached"
+#     
+#     Targets are like milestones in the boot process:
+#     
+#     Boot start ──► basic.target ──► multi-user.target ──► graphical.target
+#                    (minimal)        (full system,         (desktop)
+#                                      no desktop)
+#     
+#     For a headless pi setup, multi-user.target means:
+#     • Filesystem is mounted
+#     • Network is configured
+#     • SSH is available
+#     • System is ready for normal operation
+#     
+#     Your service starts AFTER this milestone.
+#     
+#     Some common directive types:
+#     • Wants=    Soft: "start that too, but I'll survive without it"
+#     • Requires= Hard: "if that fails, I fail too"
+#     • After=    Order: "start me after that" (but doesn't pull it in)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SECTION 2: [Service] - How to Run
+# ═══════════════════════════════════════════════════════════════════════════
+[Service]
+
+Type=simple
+# ┗━━ service category/behavior specified here
+#     
+#     Service types:
+#     • simple:  ExecStart (see below) is the service (most Python scripts)
+#     • forking: ExecStart spawns a child and exits (traditional daemons)
+#     • oneshot: Runs once and exits (setup scripts)
+#     • notify:  Like simple, but service tells systemd when it's ready
+#     
+#     For a Python script that runs forever, 'simple' is correct.
+
+ExecStart=/usr/bin/python3 /home/pi/cam_button.py
+# ┗━━ The command to run. MUST use absolute paths.
+#     
+#     Equivalent to typing this in a terminal:
+#     $ /usr/bin/python3 /home/pi/cam_button.py
+
+WorkingDirectory=/home/pi
+# ┗━━ "cd to this directory before running ExecStart"
+#     
+#     Affects:
+#     • Where relative file paths resolve
+#     • Where Python looks for modules (if you import local files)
+#     
+#     Good practice even if your script uses absolute paths.
+
+# ─────────────────────────────────────────────────────────────────────────
+# Restart behavior (CRITICAL for exhibits)
+# ─────────────────────────────────────────────────────────────────────────
+
+Restart=always
+# ┗━━ "If the process exits FOR ANY REASON, start it again"
+#     
+#     Restart policies:
+#     • no:         Never restart (default)
+#     • always:     Always restart 
+#     • on-failure: Only restart if exit code != 0
+#     • on-abnormal: Restart on signal/timeout/watchdog
+#     
+#     'always' means:
+#     • Crash? Restart.
+#     • Clean exit? Restart.
+#     • Killed by signal? Restart.
+#     • Only way to stop: 'systemctl stop'
+#     
+
+RestartSec=2
+# ┗━━ "Wait 2 seconds before restarting"
+
+# ─────────────────────────────────────────────────────────────────────────
+# Clean shutdown
+# ─────────────────────────────────────────────────────────────────────────
+
+KillSignal=SIGTERM
+# ┗━━ "When I need to stop this service, send SIGTERM first"
+#     
+#     SIGTERM = "Please shut down gracefully"
+#     SIGKILL = "Die immediately" (cannot be caught)
+#     
+#     doorbell_button.py script has:
+#         signal.signal(signal.SIGTERM, handle_shutdown)
+#     
+#     So when systemd sends SIGTERM, your script:
+#     1. Sets shutdown_requested = True
+#     2. Exits the main loop cleanly
+#     3. Runs the finally: block
+#     4. Closes camera resources
+#     5. Exits
+#     
+#     (handshake between systemd and your code)
+
+TimeoutStopSec=5
+# ┗━━ "Give the service 5 seconds to shut down gracefully"
+#     
+#     Timeline when you run 'systemctl stop':
+#     
+#     0s: systemd sends SIGTERM
+#     │
+#     │   Your script is shutting down...
+#     │   Closing camera...
+#     │   Cleanup...
+#     │
+#     5s: If still running, systemd sends SIGKILL (forced death)
+#     
+#     5 seconds is plenty for your script. Camera cleanup is fast.
+
+# ─────────────────────────────────────────────────────────────────────────
+# Logging
+# ─────────────────────────────────────────────────────────────────────────
+
+StandardOutput=journal
+StandardError=journal
+# ┗━━ "Send all print() output to the systemd journal"
+#     
+#     The journal is systemd's logging system. All your print()
+#     statements become queryable log entries.
+#     
+#     View logs:
+#         journalctl -u museum-camera        # All logs
+#         journalctl -u museum-camera -f     # Follow (like tail -f)
+#         journalctl -u museum-camera --since "1 hour ago"
+#     
+#     Without this, output would go nowhere (no terminal to print to).
+
+# ─────────────────────────────────────────────────────────────────────────
+# Environment sanity
+# ─────────────────────────────────────────────────────────────────────────
+
+Environment=PYTHONUNBUFFERED=1
+# ┗━━ "Set this environment variable for the process"
+#     
+#     Python normally buffers stdout for performance. This means
+#     print() statements might not appear in logs immediately.
+#     
+#     PYTHONUNBUFFERED=1 disables this buffering, so:
+#     • Logs appear in real-time
+#     • If the script crashes, you see the last message
+#     • Debugging is much easier
+#     
+#     ALWAYS use this for systemd Python services.
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SECTION 3: [Install] - Boot Integration
+# ═══════════════════════════════════════════════════════════════════════════
+[Install]
+
+WantedBy=multi-user.target
+# ┗━━ "When enabled, attach me to multi-user.target"
+#     
+#     This section is ONLY used by:
+#         systemctl enable museum-camera
+#         systemctl disable museum-camera
+#     
+#     When you run 'enable', systemd creates a symlink:
+#         /etc/systemd/system/multi-user.target.wants/museum-camera.service
+#         → /etc/systemd/system/museum-camera.service
+#     
+#     This means: "When booting to multi-user.target, also start
+#     museum-camera.service"
+#     
+#     For a headless Pi, multi-user.target is the right choice.
+#     (graphical.target would be for desktop systems)
