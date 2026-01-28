@@ -1,10 +1,8 @@
 #!usr/bin/env python3
 """
 interactive: Townhome Doorbell
-filename: cam_button.py
+filename: doorbell_button.py
 description: button-triggered live camera preview
----DEVELOPMENT VERSION (uses QtGL preview)---
-
 author: Isai Sanchez
 date: 01-21-2026
 hardware:
@@ -15,6 +13,7 @@ hardware:
 notes:
     gpiozero's button callbacks run in a BACKGROUND THREAD, not the main thread
     QT (used by Preview.QTGL to open preview window) requires all GUI operations on the MAIN THREAD
+    it is also a good idea to use main thread for DRM when connectead to a headless Pi
 
     solution:
     The callback function (`on_button_pressed()`) ONLY sets a flag, while the main loop checks this flag and
@@ -31,7 +30,7 @@ from picamera2 import Picamera2, Preview
 # --------------------
 # Configuration
 # --------------------
-BUTTON_GPIO = 17
+BUTTON_GPIO = 4
 ACTIVE_DURATION = 10.0  # num of seconds camera stays on
 POLL_INTERVAL = 0.1  # main loop cycle time in seconds
 
@@ -99,7 +98,7 @@ def activate_camera():
     print("[main] Activating camera...")
 
     try:
-        picam2.start_preview(Preview.QTGL, width=1920, height=1080)
+        picam2.start_preview(Preview.DRM, width=1920, height=1080)
         picam2.start()
         activation_timestamp = time.monotonic()
         camera_active = True
