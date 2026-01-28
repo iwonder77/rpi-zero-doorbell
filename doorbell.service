@@ -49,14 +49,14 @@ Type=simple
 #     
 #     For a Python script that runs forever, 'simple' is correct.
 
-ExecStart=/usr/bin/python3 /home/isanchez/python-scripts/doorbell/doorbell_camera.py
+ExecStart=/usr/bin/python3 /home/townhome/doorbell_camera/doorbell_camera.py
 # ┗━━ The command to run. MUST use absolute paths. Make sure second directory 
 #     path matches path of python script to run exactly
 #     
 #     Equivalent to typing this in a terminal:
 #     $ /usr/bin/python3 /home/pi/cam_button.py
 
-WorkingDirectory=/home/isanchez/python-scripts/doorbell
+WorkingDirectory=/home/townhome/doorbell_camera
 # ┗━━ "cd to this directory before running ExecStart"
 #     
 #     Affects:
