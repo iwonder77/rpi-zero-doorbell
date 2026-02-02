@@ -52,7 +52,7 @@ picam2.configure(preview_config)
 # --------------------
 # Button setup
 # --------------------
-button = Button(BUTTON_GPIO, pull_up=True, bounce_time=0.05)
+button = Button(BUTTON_GPIO, pull_up=False, bounce_time=0.05)
 
 
 # --------------------
