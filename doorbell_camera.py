@@ -31,7 +31,7 @@ from picamera2 import Picamera2, Preview
 # Configuration
 # --------------------
 BUTTON_GPIO = 17
-ACTIVE_DURATION = 10.0  # num of seconds camera stays on
+ACTIVE_DURATION = 7.0  # num of seconds camera stays on
 POLL_INTERVAL = 0.1  # main loop cycle time in seconds
 
 # --------------------
