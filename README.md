@@ -22,7 +22,7 @@ This repository holds the firmware (python script), systemd service file, and st
    - enable SSH
 2. Insert SD card into slot, connect monitor and keyboard, then boot up the Pi (visually inspect boot up process and take note of any errors)
    - NOTE: make sure you have a reliable power supply (I went with a 5V 3A rated one), lots of issues stem from a faulty power supply
-3. Once the tty1 console login screen appears, sign in with username and password
+3. Once the tty1 console login screen appears, sign in with username and password (or SSH into the Pi if you prefer)
 4. Check network connection by executing: `ping -c 3 google.com`
    - NOTE: network connection may take a couple of minutes, also the Pi Zero 2w only supports 2.4GHz Wifi, so make sure you have a solid connection (I found putting it close to the shop router and connecting via SSH worked well)
    - if network connection is successful, skip to step 5, if it is not successful, you will have to troubleshoot each layer of the connnection process to see where things went wrong (we need wifi for package updates and installation)
@@ -32,7 +32,7 @@ This repository holds the firmware (python script), systemd service file, and st
      - Layer 3: Gateway reachable (can we reach the router?)
      - Layer 4: DNS working (can we resolve names to IPs?)
      - Layer 5: internet reachable (can we reach external servers?)
-5. Execute
+5. Update package lists by executing:
 
 ```bash
 sudo apt update
@@ -63,3 +63,15 @@ cd doorbell_camera
 ```bash
 wget https://raw.githubusercontent.com/iwonder77/rpi-zero-doorbell/refs/heads/main/doorbell_camera.py
 ```
+
+10. Now with the Wifi steps out of the way, configure the camera if necessary (manufacturer should provide steps). For the Arducam IMX708 12MP camera and Trixie OS:
+    - open the firmware config file located in `/boot/firmware/config.txt` in text editor with superuser privileges (sudo)
+    - find the line with `camera_auto_detect=1` and replace it with `camera_auto_detect=0`
+    - locate the `[all]` section (should be at the bottom) and add the following line directly underneath it: `dtoverlay=imx708`
+    - save file and reboot Pi with: `sudo reboot`
+
+11. Connect the camera and test that it is...
+    - detected by the Pi: `rpicam-still --list-cameras`
+    - capturing proper live feed: `rpicam-still -t 0`
+
+12. Carefully connect the button circuit and test the python script + button interactivity with the simple command: `python doorbell_camera.py`
