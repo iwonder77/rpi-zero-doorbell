@@ -83,4 +83,7 @@ wget https://raw.githubusercontent.com/iwonder77/rpi-zero-doorbell/refs/heads/ma
 
 15. Tell systemd to reread the service files with: `sudo systemctl daemon-reload`
 
-16.
+16. Start the doorbell service file now with: `sudo systemctl start doorbell.service`
+    - After a couple of seconds, the button + camera should be working automatically without having to run the python script manually!
+
+17. Enable the service file on boot with: `sudo systemctl enable doorbell.service`
