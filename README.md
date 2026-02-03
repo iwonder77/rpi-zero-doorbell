@@ -64,14 +64,23 @@ cd doorbell_camera
 wget https://raw.githubusercontent.com/iwonder77/rpi-zero-doorbell/refs/heads/main/doorbell_camera.py
 ```
 
-10. Now with the Wifi steps out of the way, configure the camera if necessary (manufacturer should provide steps). For the Arducam IMX708 12MP camera and Trixie OS:
-    - open the firmware config file located in `/boot/firmware/config.txt` in text editor with superuser privileges (sudo)
+10. Now with the Wifi steps out of the way, configure the camera settings if necessary (manufacturer should provide steps). For the Arducam IMX708 12MP camera and Trixie OS:
+    - open the firmware config file in a text editor with superuser privileges: `sudo nvim /boot/firmware/config.txt`
     - find the line with `camera_auto_detect=1` and replace it with `camera_auto_detect=0`
     - locate the `[all]` section (should be at the bottom) and add the following line directly underneath it: `dtoverlay=imx708`
-    - save file and reboot Pi with: `sudo reboot`
+    - save file and shutdown Pi with: `sudo shutdown now`
 
-11. Connect the camera and test that it is...
-    - detected by the Pi: `rpicam-still --list-cameras`
-    - capturing proper live feed: `rpicam-still -t 0`
+11. While the Pi is OFF, connect the camera and button circuit carefully (refer to schematic)
 
-12. Carefully connect the button circuit and test the python script + button interactivity with the simple command: `python doorbell_camera.py`
+12. Turn the Pi back ON, and perform the following test steps after logging in:
+    - [ ] Camera is detected by the Pi: `rpicam-still --list-cameras`
+    - [ ] Camera shows proper live feed on monitor: `rpicam-still -t 0` (Ctrl+C to exit)
+    - [ ] Python script works: `python doorbell_camera/doorbell_camera.py`
+
+13. Now it is time to test the systemd service file. Before anything though, we need to make sure the previously downloaded `doorbell.service` file has the correct paths. Open it up with a text editor and make sure the `ExecStart=` and `WorkingDirectory=` lines have the correct paths (directory and file names) to the python script
+
+14. Once the `doorbell.service` file is verified, copy it to the appropriate systemd directory with: `sudo cp doorbell.service /etc/systemd/system`
+
+15. Tell systemd to reread the service files with: `sudo systemctl daemon-reload`
+
+16.
