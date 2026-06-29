@@ -65,7 +65,7 @@ wget https://raw.githubusercontent.com/iwonder77/rpi-zero-doorbell/refs/heads/ma
 ```
 
 10. Now with the Wifi steps out of the way, configure the camera settings if necessary (manufacturer should provide steps). For the Arducam IMX708 12MP camera and Trixie OS:
-    - open the firmware config file in a text editor with superuser privileges: `sudo nvim /boot/firmware/config.txt`
+    - open the firmware config file in a text editor with superuser privileges: `sudo vim /boot/firmware/config.txt`
     - find the line with `camera_auto_detect=1` and replace it with `camera_auto_detect=0`
     - locate the `[all]` section (should be at the bottom) and add the following line directly underneath it: `dtoverlay=imx708`
     - save file and shutdown Pi with: `sudo shutdown now`
