@@ -92,7 +92,7 @@ wget https://raw.githubusercontent.com/iwonder77/rpi-zero-doorbell/refs/heads/ma
 
 18. Reboot the pi with `sudo reboot` and then, **without logging in**, verify autonomous operation by pressing the arcade button and confirm the camera feed appears on the monitor. This behavior proves the exhibit runs hands-free across power cycles, which is exactly how it must behave in the Smarthome exhibit. Now we must disable both the boot up text and the login screen text so that the screen remains completely black when idle, and shows the camera screen when button is pressed.
 
-19. to disable boot up text, open the firmware cmdline boot file in a text editor with superuser privileges: `sudo vim /boot/firmware/cmdline.txt`
+19. to disable boot up text, login normally and open the firmware cmdline boot file in a text editor with superuser privileges: `sudo vim /boot/firmware/cmdline.txt`
     - find and replace `console=tty1` with `console=tty3`
     - append the following to the end of line 1: `logo.nologo loglevel=3 vt.global_cursor_default=0`
     - **NOTE**: The file must remain ONE LINE ONLY otherwise you'll get some boot issues
