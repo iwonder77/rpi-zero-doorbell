@@ -32,6 +32,21 @@ After=multi-user.target
 #     • Requires= Hard: "if that fails, I fail too"
 #     • After=    Order: "start me after that" (but doesn't pull it in)
 
+StartLimitIntervalSec=0
+# ┗━━ "Never give up restarting this service."
+#
+#     systemd has a safety valve: by default, if a service restarts too many
+#     times too quickly (5 times within 10s) it assumes the situation is
+#     hopeless, gives up, and leaves the service DEAD. For a normal desktop app
+#     that's sensible. For an unattended 24/7 exhibit it is the WRONG behavior:
+#     a camera that is simply slow to enumerate at boot could trip this limit,
+#     and the exhibit would then stay dark until a human physically intervenes.
+#
+#     Setting this to 0 disables the rate limit entirely. Combined with
+#     Restart=always (below), systemd will keep retrying FOREVER, every
+#     RestartSec seconds, no matter how many times it has failed. The exhibit
+#     always claws its way back on its own.
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # SECTION 2: [Service] - How to Run
@@ -48,6 +63,25 @@ Type=simple
 #     • notify:  Like simple, but service tells systemd when it's ready
 #     
 #     For a Python script that runs forever, 'simple' is correct.
+
+User=doorbell
+Group=doorbell
+SupplementaryGroups=video render gpio
+# ┗━━ Run as the unprivileged 'doorbell' user instead of root.
+#
+#     By default (no User= line) a service runs as ROOT — full control of the
+#     entire machine. If the script or a library it pulls in ever misbehaves or
+#     is compromised, root means there are no guardrails. Professional practice
+#     is to run with the least privilege the job actually needs.
+#
+#     This camera app needs exactly three capabilities beyond a normal user:
+#       • video, render → talk to the camera and the DRM/KMS display pipeline
+#                         that draws the live preview on the monitor
+#       • gpio          → read the arcade button wired to GPIO 17
+#
+#     SupplementaryGroups grants those specific groups and nothing more.
+#     PREREQUISITE: the 'doorbell' user must exist and own the script directory
+#     (it does, since the script lives under /home/doorbell/).
 
 ExecStart=/usr/bin/python3 /home/doorbell/doorbell_camera/doorbell_camera.py
 # ┗━━ The command to run. MUST use absolute paths. Make sure second directory 
