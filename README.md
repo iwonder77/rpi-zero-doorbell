@@ -73,13 +73,13 @@ wget https://raw.githubusercontent.com/iwonder77/rpi-zero-doorbell/refs/heads/ma
 11. While the Pi is OFF, connect the camera and button circuit carefully (refer to schematic)
 
 12. Turn the Pi back ON, and perform the following test steps after logging in:
-    - [ ] Camera is detected by the Pi: `rpicam-still --list-cameras`
-    - [ ] Camera shows proper live feed on monitor: `rpicam-still -t 0` (Ctrl+C to exit)
-    - [ ] Python script works: `python doorbell_camera/doorbell_camera.py`
+    - [ ] Check camera is detected by the Pi: `rpicam-still --list-cameras`
+    - [ ] Check camera shows proper live feed on monitor: `rpicam-still -t 0` (Ctrl+C to exit)
+    - [ ] Check Python script works: `python doorbell_camera/doorbell_camera.py`
 
-13. Now it is time to test the systemd service file. Before anything though, we need to make sure the previously downloaded `doorbell.service` file has the correct paths. Open it up with a text editor and make sure the `ExecStart=` and `WorkingDirectory=` lines have the correct paths (directory and file names) to the python script
+13. Before testing the systemd service file, we need to make sure the previously downloaded `doorbell.service` file has the correct paths. Open it up with a text editor and make sure the `ExecStart=` and `WorkingDirectory=` lines have the correct paths (directory and file names) to the python script
 
-14. Once the `doorbell.service` file is verified, copy it to the appropriate systemd directory with: `sudo cp doorbell.service /etc/systemd/system`
+14. Once you've verified the `doorbell.service` file works, copy it to the appropriate systemd directory with: `sudo cp doorbell.service /etc/systemd/system`
 
 15. Tell systemd to reread the service files with: `sudo systemctl daemon-reload`
 
@@ -87,3 +87,12 @@ wget https://raw.githubusercontent.com/iwonder77/rpi-zero-doorbell/refs/heads/ma
     - After a couple of seconds, the button + camera should be working automatically without having to run the python script manually!
 
 17. Enable the service file on boot with: `sudo systemctl enable doorbell.service`
+
+17b. **Reboot-and-verify (acceptance test for autonomous operation):** reboot the Pi with `sudo reboot`, then **without logging in**, press the arcade button and confirm the camera feed appears on the monitor. This proves the exhibit runs hands-free across power cycles, which is exactly how it will behave in the gallery. Do not proceed to the production lockdown until this passes.
+
+18. **Production lockdown (do this LAST, only after step 17b passes):** enable the overlay filesystem to make the OS immune to SD-card corruption from power loss (the #1 cause of dead exhibits after an abrupt shutdown).
+    - run `sudo raspi-config`
+    - go to *Performance Options* → *Overlay File System* and enable it
+    - when prompted *"Would you like the boot partition to be write-protected?"*, answer **yes** (the boot partition is never written during normal operation, so locking it closes the last path to SD corruption)
+    - reboot when prompted
+    - ⚠️ **IMPORTANT:** once the overlay is enabled, the OS root and boot partition are read-only — no changes you make (config edits, script updates, package installs, `apt upgrade`) will survive a reboot. To make future changes you must re-run `sudo raspi-config`, **disable** the Overlay File System (and boot write-protection), reboot, make your changes, then re-enable the overlay and reboot again.
