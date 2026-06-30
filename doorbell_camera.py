@@ -1,12 +1,12 @@
-#!usr/bin/env python3
+#!/usr/bin/env python3
 """
-interactive: Townhome Doorbell
-filename: doorbell_button.py
+interactive: Smarthome Doorbell
+filename: doorbell_camera.py
 description: button-triggered live camera preview
 author: Isai Sanchez
 date: 01-21-2026
 hardware:
-    - Raspberry Pi 4 Model B
+    - Raspberry Pi Zero 2W
     - Arducam IMX708 12MP 75D (SKU: B0312)
     - Acer 15.6" Monitor
     - Momentary arcade push button wired to GPIO_17 and GND (N.O.)
@@ -33,6 +33,7 @@ from picamera2 import Picamera2, Preview
 BUTTON_GPIO = 17
 ACTIVE_DURATION = 7.0  # num of seconds camera stays on
 POLL_INTERVAL = 0.1  # main loop cycle time in seconds
+CAMERA_INIT_RETRY_SEC = 2.0  # wait between camera init attempts at startup
 
 # --------------------
 # Global state variables
@@ -41,18 +42,6 @@ camera_active = False
 pending_activation = False  # flag set by the button press callback
 activation_timestamp = 0.0
 shutdown_requested = False
-
-# --------------------
-# Camera init
-# --------------------
-picam2 = Picamera2()
-preview_config = picam2.create_preview_configuration(main={"size": (1920, 1080)})
-picam2.configure(preview_config)
-
-# --------------------
-# Button setup
-# --------------------
-button = Button(BUTTON_GPIO, pull_up=False, bounce_time=0.05)
 
 
 # --------------------
@@ -64,8 +53,50 @@ def handle_shutdown(signum, frame):
     shutdown_requested = True
 
 
+# Register handlers BEFORE the camera init retry loop below, so a stop request
+# (SIGTERM from systemd, or SIGINT from Ctrl+C) can break us out of retrying
+# instead of leaving us stuck waiting on a camera that may never appear.
 signal.signal(signal.SIGTERM, handle_shutdown)
 signal.signal(signal.SIGINT, handle_shutdown)
+
+
+# --------------------
+# Camera init (with retry)
+# --------------------
+def init_camera():
+    """
+    Construct and configure the camera, retrying until it succeeds.
+
+    At boot the camera sensor is sometimes not enumerated yet by the time this
+    script starts. A single Picamera2() call would then raise and the whole
+    process would crash. Rather than die, we retry on a fixed backoff until the
+    sensor shows up (or until a shutdown is requested). This pairs with the
+    systemd 'StartLimitIntervalSec=0' setting: between the two, a slow or flaky
+    camera at startup self-heals instead of taking the exhibit down.
+    """
+    while not shutdown_requested:
+        try:
+            cam = Picamera2()
+            preview_config = cam.create_preview_configuration(
+                main={"size": (1920, 1080)}
+            )
+            cam.configure(preview_config)
+            print("[init] Camera initialized")
+            return cam
+        except Exception as e:
+            print(f"[init] ERROR initializing camera: {e}")
+            print(f"[init] Retrying in {CAMERA_INIT_RETRY_SEC:.1f}s...")
+            time.sleep(CAMERA_INIT_RETRY_SEC)
+    return None  # shutdown requested before the camera ever came up
+
+
+picam2 = init_camera()
+
+
+# --------------------
+# Button setup
+# --------------------
+button = Button(BUTTON_GPIO, pull_up=False, bounce_time=0.05)
 
 
 # --------------------
@@ -150,6 +181,7 @@ finally:
     print("Shutting down...")
     if camera_active:
         deactivate_camera()
-    picam2.close()
+    if picam2 is not None:  # may be None if we were told to stop mid-init
+        picam2.close()
     print("Clean shutdown complete.")
     print("=" * 50)
