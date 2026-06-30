@@ -2,14 +2,14 @@
 
 ## Overview
 
-This repository holds the firmware (python script), systemd service file, and steps for setting up a Raspberry Pi Zero 2w for the Doorbell interactive in the Townhome exhibit of Kidopolis at Thanksgiving Point's Museum of Natural Curiosity.
+This repository holds the firmware (python script), systemd service file, and steps for setting up a Raspberry Pi Zero 2W for the Doorbell interactive in the Smarthome exhibit of Kidopolis at Thanksgiving Point's Museum of Natural Curiosity.
 
 ## Hardware
 
-- Raspberry Pi Zero 2w
+- Raspberry Pi Zero 2W
 - [Arducam IMX708 12MP](https://docs.arducam.com/Raspberry-Pi-Camera/Native-camera/12MP-IMX708/#products-list) camera (SKU: B0312)
 - Acer 15.6" Monitor
-- Arcade button + ESD protected circuit
+- Arcade button + ESD protection circuit
 
 ## Setup Steps
 
@@ -92,7 +92,7 @@ wget https://raw.githubusercontent.com/iwonder77/rpi-zero-doorbell/refs/heads/ma
 
 18. **Production lockdown (do this LAST, only after step 17b passes):** enable the overlay filesystem to make the OS immune to SD-card corruption from power loss (the #1 cause of dead exhibits after an abrupt shutdown).
     - run `sudo raspi-config`
-    - go to *Performance Options* → *Overlay File System* and enable it
-    - when prompted *"Would you like the boot partition to be write-protected?"*, answer **yes** (the boot partition is never written during normal operation, so locking it closes the last path to SD corruption)
+    - go to _Performance Options_ → _Overlay File System_ and enable it
+    - when prompted _"Would you like the boot partition to be write-protected?"_, answer **yes** (the boot partition is never written during normal operation, so locking it closes the last path to SD corruption)
     - reboot when prompted
     - ⚠️ **IMPORTANT:** once the overlay is enabled, the OS root and boot partition are read-only — no changes you make (config edits, script updates, package installs, `apt upgrade`) will survive a reboot. To make future changes you must re-run `sudo raspi-config`, **disable** the Overlay File System (and boot write-protection), reboot, make your changes, then re-enable the overlay and reboot again.
