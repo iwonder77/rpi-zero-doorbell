@@ -45,7 +45,7 @@ sudo apt upgrade -y
 sudo apt install -y vim git python3-pip python3-picamera2 python3-gpiozero python3-systemd
 ```
 
-   - NOTE: `python3-systemd` provides the `sd_notify` bindings the script uses for its systemd watchdog (READY/WATCHDOG handshake). It must be installed before running the script or the service, otherwise the `from systemd import daemon` import will fail.
+- NOTE: `python3-systemd` provides the `sd_notify` bindings the script uses for its systemd watchdog (READY/WATCHDOG handshake). It must be installed before running the script or the service, otherwise the `from systemd import daemon` import will fail.
 
 7. While we've got Wifi working, download the systemd service file into our home directory (~) using wget:
 
@@ -75,9 +75,9 @@ wget https://raw.githubusercontent.com/iwonder77/rpi-zero-doorbell/refs/heads/ma
 11. While the Pi is OFF, connect the camera and button circuit carefully (refer to schematic)
 
 12. Turn the Pi back ON, and perform the following test steps after logging in:
-    - [ ] Check camera is detected by the Pi: `rpicam-still --list-cameras`
-    - [ ] Check camera shows proper live feed on monitor: `rpicam-still -t 0` (Ctrl+C to exit)
-    - [ ] Check Python script works: `python doorbell_camera/doorbell_camera.py`
+    - check camera is detected by the Pi: `rpicam-still --list-cameras`
+    - check camera shows proper live feed on monitor: `rpicam-still -t 0` (Ctrl+C to exit)
+    - check Python script works: `python doorbell_camera/doorbell_camera.py`
 
 13. Before testing the systemd service file, we need to make sure the previously downloaded `doorbell.service` file has the correct paths. Open it up with a text editor and make sure the `ExecStart=` and `WorkingDirectory=` lines have the correct paths (directory and file names) to the python script
 
@@ -86,13 +86,21 @@ wget https://raw.githubusercontent.com/iwonder77/rpi-zero-doorbell/refs/heads/ma
 15. Tell systemd to reread the service files with: `sudo systemctl daemon-reload`
 
 16. Start the doorbell service file now with: `sudo systemctl start doorbell.service`
-    - After a couple of seconds, the button + camera should be working automatically without having to run the python script manually!
+    - after a couple of seconds, the button + camera should be working automatically without having to run the python script manually!
 
 17. Enable the service file on boot with: `sudo systemctl enable doorbell.service`
 
-17b. **Reboot-and-verify (acceptance test for autonomous operation):** reboot the Pi with `sudo reboot`, then **without logging in**, press the arcade button and confirm the camera feed appears on the monitor. This proves the exhibit runs hands-free across power cycles, which is exactly how it will behave in the gallery. Do not proceed to the production lockdown until this passes.
+18. Reboot the pi with `sudo reboot` and then, **without logging in**, verify autonomous operation by pressing the arcade button and confirm the camera feed appears on the monitor. This behavior proves the exhibit runs hands-free across power cycles, which is exactly how it must behave in the Smarthome exhibit. Now we must disable both the boot up text and the login screen text so that the screen remains completely black when idle, and shows the camera screen when button is pressed.
 
-18. **Production lockdown (do this LAST, only after step 17b passes):** enable the overlay filesystem to make the OS immune to SD-card corruption from power loss (the #1 cause of dead exhibits after an abrupt shutdown).
+19. to disable boot up text, open the firmware cmdline boot file in a text editor with superuser privileges: `sudo vim /boot/firmware/cmdline.txt`
+    - find and replace `console=tty1` with `console=tty3`
+    - append the following to the end of line 1: `logo.nologo loglevel=3 vt.global_cursor_default=0`
+    - **NOTE**: The file must remain ONE LINE ONLY otherwise you'll get some boot issues
+
+20. to disable login screen text info simply run: `sudo systemctl disable getty@tty1.service`
+    - **NOTE**: From now on, whenever you boot up the pi the screen should be pitch black, if you ever want to troubleshoot or continue running commands in the Pi's terminal, simply press "Ctrl + Alt + F2" (also try F3/F4/F4/F6) to switch between different virtual consoles. This should land you in a fresh `login:` prompt.
+
+21. **Production Lockdown step** (do this LAST, only after all the previous steps have passed): enable the overlay filesystem to make the OS immune to SD-card corruption from power loss (the #1 cause of dead exhibits after an abrupt shutdown).
     - run `sudo raspi-config`
     - go to _Performance Options_ → _Overlay File System_ and enable it
     - when prompted _"Would you like the boot partition to be write-protected?"_, answer **yes** (the boot partition is never written during normal operation, so locking it closes the last path to SD corruption)
