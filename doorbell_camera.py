@@ -26,6 +26,7 @@ import time
 
 from gpiozero import Button
 from picamera2 import Picamera2, Preview
+from systemd import daemon  # sd_notify bindings (package: python3-systemd)
 
 # --------------------
 # Configuration
@@ -162,8 +163,23 @@ print("System ready. Press button to activate camera.")
 print("Press Ctrl+C to exit.")
 print("=" * 50)
 
+# Tell systemd we are fully initialized and the camera is up. This is the
+# handshake for the service's Type=notify: systemd holds the unit in the
+# "activating" state until it receives READY=1, then marks it active. We send
+# this only after init_camera() has succeeded, so "active" means truly ready.
+# (No-op when not running under systemd, e.g. when testing the script by hand.)
+daemon.notify("READY=1")
+
 try:
     while not shutdown_requested:
+        # Pet the systemd watchdog once per cycle. systemd expects a WATCHDOG=1
+        # ping at least every WatchdogSec seconds (see the service file). If the
+        # main loop ever stops cycling -- e.g. a picamera2 call hangs instead of
+        # returning -- these pings stop and systemd restarts the service for us.
+        # A plain crash is already covered by Restart=always; this catches the
+        # nastier case where the process is alive but frozen.
+        daemon.notify("WATCHDOG=1")
+
         # PENDING -> ACTIVE state transition
         if pending_activation and not camera_active:
             pending_activation = False  # clear pending flag first, then activate

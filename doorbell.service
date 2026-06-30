@@ -53,16 +53,41 @@ StartLimitIntervalSec=0
 # ═══════════════════════════════════════════════════════════════════════════
 [Service]
 
-Type=simple
+Type=notify
 # ┗━━ service category/behavior specified here
-#     
+#
 #     Service types:
 #     • simple:  ExecStart (see below) is the service (most Python scripts)
 #     • forking: ExecStart spawns a child and exits (traditional daemons)
 #     • oneshot: Runs once and exits (setup scripts)
-#     • notify:  Like simple, but service tells systemd when it's ready
-#     
-#     For a Python script that runs forever, 'simple' is correct.
+#     • notify:  Like simple, but the service tells systemd when it's ready
+#                (and can ping a watchdog) via sd_notify messages
+#
+#     We use 'notify' (not 'simple') because the script talks back to systemd:
+#       • it sends READY=1 once the camera is initialized, so "active" in
+#         systemctl status genuinely means the exhibit is up
+#       • it sends WATCHDOG=1 every loop so systemd can detect a hang
+#         (see WatchdogSec below)
+#     This requires the python3-systemd package (see README install step).
+
+WatchdogSec=15
+# ┗━━ "If I don't hear a WATCHDOG=1 ping for 15 seconds, assume the process is
+#     hung and restart it."
+#
+#     Restart=always (below) already handles a process that CRASHES (exits).
+#     But a worse failure for an exhibit is a process that is still alive yet
+#     FROZEN -- e.g. a camera/DRM call that blocks forever. systemd can't see
+#     that from the outside; the process looks fine.
+#
+#     With this set, the script must check in at least every 15s by sending
+#     WATCHDOG=1 from its main loop. The loop cycles every 0.1s, so in healthy
+#     operation it pings ~150x per window -- huge margin. The moment the loop
+#     stops cycling (a hang), the pings stop, 15s elapses, and systemd kills +
+#     restarts the service automatically. Self-healing with no human needed.
+#
+#     NOTE: the watchdog clock only starts after the script sends READY=1, so a
+#     slow camera at boot won't trip it; startup is governed by TimeoutStartSec
+#     (default 90s), which the camera retry loop comfortably fits inside.
 
 User=doorbell
 Group=doorbell
@@ -88,7 +113,7 @@ ExecStart=/usr/bin/python3 /home/doorbell/doorbell_camera/doorbell_camera.py
 #     path matches path of python script to run exactly
 #     
 #     Equivalent to typing this in a terminal:
-#     $ /usr/bin/python3 /home/pi/cam_button.py
+#     $ /usr/bin/python3 /home/doorbell/doorbell_camera/doorbell_camera.py
 
 WorkingDirectory=/home/doorbell/doorbell_camera
 # ┗━━ "cd to this directory before running ExecStart"
@@ -132,7 +157,7 @@ KillSignal=SIGTERM
 #     SIGTERM = "Please shut down gracefully"
 #     SIGKILL = "Die immediately" (cannot be caught)
 #     
-#     doorbell_button.py script has:
+#     doorbell_camera.py script has:
 #         signal.signal(signal.SIGTERM, handle_shutdown)
 #     
 #     So when systemd sends SIGTERM, your script:
@@ -171,9 +196,9 @@ StandardError=journal
 #     statements become queryable log entries.
 #     
 #     View logs:
-#         journalctl -u museum-camera        # All logs
-#         journalctl -u museum-camera -f     # Follow (like tail -f)
-#         journalctl -u museum-camera --since "1 hour ago"
+#         journalctl -u doorbell.service        # All logs
+#         journalctl -u doorbell.service -f     # Follow (like tail -f)
+#         journalctl -u doorbell.service --since "1 hour ago"
 #     
 #     Without this, output would go nowhere (no terminal to print to).
 
@@ -204,15 +229,15 @@ WantedBy=multi-user.target
 # ┗━━ "When enabled, attach me to multi-user.target"
 #     
 #     This section is ONLY used by:
-#         systemctl enable museum-camera
-#         systemctl disable museum-camera
+#         systemctl enable doorbell.service
+#         systemctl disable doorbell.service
 #     
 #     When you run 'enable', systemd creates a symlink:
-#         /etc/systemd/system/multi-user.target.wants/museum-camera.service
-#         → /etc/systemd/system/museum-camera.service
+#         /etc/systemd/system/multi-user.target.wants/doorbell.service
+#         → /etc/systemd/system/doorbell.service
 #     
 #     This means: "When booting to multi-user.target, also start
-#     museum-camera.service"
+#     doorbell.service"
 #     
 #     For a headless Pi, multi-user.target is the right choice.
 #     (graphical.target would be for desktop systems)
