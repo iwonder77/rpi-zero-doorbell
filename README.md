@@ -39,11 +39,13 @@ sudo apt update
 sudo apt upgrade -y
 ```
 
-6. Install vim and git (optional) and pip, picamera2, and gpiozero with:
+6. Install vim and git (optional) and pip, picamera2, gpiozero, and the systemd Python bindings with:
 
 ```bash
-sudo apt install -y vim git python3-pip python3-picamera2 python3-gpiozero
+sudo apt install -y vim git python3-pip python3-picamera2 python3-gpiozero python3-systemd
 ```
+
+   - NOTE: `python3-systemd` provides the `sd_notify` bindings the script uses for its systemd watchdog (READY/WATCHDOG handshake). It must be installed before running the script or the service, otherwise the `from systemd import daemon` import will fail.
 
 7. While we've got Wifi working, download the systemd service file into our home directory (~) using wget:
 
