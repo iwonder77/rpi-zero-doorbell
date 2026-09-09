@@ -1,0 +1,30 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# Nightly restart helper  -- paired with doorbell-restart.timer
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# WHY THIS EXISTS:
+#   The exhibit runs every day, unattended, for months. Long-lived processes
+#   accumulate problems you will never have time to hunt down -- a slow memory
+#   leak, a DRM buffer that isn't quite freed on the thousandth preview cycle,
+#   a camera pipeline that gets slightly wedged. Restarting once a day before
+#   the museum opens costs 2 seconds and makes all of those irrelevant.
+#
+#   This is standard practice for unattended installations. It is not an
+#   admission that the code is buggy; it is refusing to bet the exhibit on
+#   the code being perfect for 90 days straight.
+#
+# WHY A TIMER AND NOT 'RuntimeMaxSec=1d' IN doorbell.service:
+#   RuntimeMaxSec restarts 24h after the service last started, which DRIFTS.
+#   Whatever time it fires today, it fires a bit later tomorrow, and sooner or
+#   later it lands at 2pm on a Saturday in the middle of a kid's turn.
+#   A timer fires at a wall-clock time we choose: before opening, every day.
+
+[Unit]
+Description=Restart the doorbell exhibit
+
+[Service]
+Type=oneshot
+# ┗━━ Runs one command and exits. There is no long-running process here --
+#     this unit exists only to be triggered by the timer.
+
+ExecStart=/usr/bin/systemctl restart doorbell.service
