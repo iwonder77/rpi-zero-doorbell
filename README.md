@@ -14,7 +14,7 @@ This repository holds the firmware (python script), systemd service file, and st
 ## Setup Steps
 
 1. Flash a reliable SD card with Raspberry Pi OS Lite (64-bit) using the [Raspberry Pi Imager](https://www.raspberrypi.com/software/). Ensure the following configuration settings are set:
-   - hostname, username, and password (write these down somewhere)
+   - hostname, username=`doorbell`, and password (write these down somewhere)
    - capital city: Washington D.C.
    - time zone: America/Denver
    - keyboard layout: us
