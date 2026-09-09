@@ -10,9 +10,9 @@ Description=Museum Exhibit Camera Button
 #     • Error messages
 #     Think of it like a comment, but one the system actually uses.
 
-After=multi-user.target
-# ┗━━ "Don't start me until multi-user.target is reached"
-#     
+# After=multi-user.target
+# ┗━━ DELIBERATELY NOT SET. See the reasoning at the end of this comment.
+#
 #     Targets are like milestones in the boot process:
 #     
 #     Boot start ──► basic.target ──► multi-user.target ──► graphical.target
@@ -25,12 +25,19 @@ After=multi-user.target
 #     • SSH is available
 #     • System is ready for normal operation
 #     
-#     Your service starts AFTER this milestone.
-#     
 #     Some common directive types:
 #     • Wants=    Soft: "start that too, but I'll survive without it"
 #     • Requires= Hard: "if that fails, I fail too"
 #     • After=    Order: "start me after that" (but doesn't pull it in)
+#
+#     WHY WE DON'T USE IT HERE: we are WantedBy=multi-user.target (see the
+#     [Install] section at the bottom), i.e. we are one of the things that
+#     target pulls in. Ordering ourselves After= the very target we are a
+#     member of means waiting for every OTHER unit that target wants before
+#     we get to start -- so the exhibit comes up LATER for no benefit.
+#     We don't need to wait anyway: the camera may not be enumerated yet at
+#     boot, and init_camera() in the Python script already retries until it
+#     appears. Handle device readiness in the code, not in the ordering graph.
 
 StartLimitIntervalSec=0
 # ┗━━ "Never give up restarting this service."
@@ -107,6 +114,26 @@ SupplementaryGroups=video render gpio
 #     SupplementaryGroups grants those specific groups and nothing more.
 #     PREREQUISITE: the 'doorbell' user must exist and own the script directory
 #     (it does, since the script lives under /home/doorbell/).
+#     VERIFY those groups actually exist on your image before deploying --
+#     if any one of them doesn't, the WHOLE unit fails to start with an
+#     unhelpful error:  getent group video render gpio
+
+NoNewPrivileges=yes
+# ┗━━ "This process can never gain more privileges than it starts with."
+#
+#     Blocks setuid binaries (like sudo) from elevating out of the sandbox.
+#     We dropped to the 'doorbell' user above; this makes that drop one-way.
+#     Free, and there is no reason a camera preview would ever need to escalate.
+
+ProtectSystem=full
+# ┗━━ "Mount /usr, /boot and /etc read-only for this process."
+#
+#     The script only ever reads code and talks to /dev. It has no business
+#     writing to the OS, so remove the ability entirely. If a library ever
+#     misbehaves it cannot scribble on the system.
+#
+#     NOTE: /home is NOT protected by this (that would be ProtectHome=, which
+#     we must NOT set -- our script lives in /home/doorbell/).
 
 ExecStart=/usr/bin/python3 /home/doorbell/doorbell_camera/doorbell_camera.py
 # ┗━━ The command to run. MUST use absolute paths. Make sure second directory 
