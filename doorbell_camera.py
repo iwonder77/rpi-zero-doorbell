@@ -25,6 +25,7 @@ import signal
 import time
 
 from gpiozero import Button
+from libcamera import Transform
 from picamera2 import Picamera2, Preview
 from systemd import daemon  # sd_notify bindings (package: python3-systemd)
 
@@ -35,6 +36,10 @@ BUTTON_GPIO = 17
 ACTIVE_DURATION = 7.0  # num of seconds camera stays on
 POLL_INTERVAL = 0.1  # main loop cycle time in seconds
 CAMERA_INIT_RETRY_SEC = 2.0  # wait between camera init attempts at startup
+# Camera is mounted upside down due to physical constraints in the exhibit houing, so flip
+# both axes with hflip+vflip == 180 deg rotation, and the IMX708 does it in the sensor
+# for free (Transform(rotation=180) is equivalent)
+CAMERA_TRANSFORM = Transform(hflip=1, vflip=1)
 
 # --------------------
 # Global state variables
@@ -79,7 +84,8 @@ def init_camera():
         try:
             cam = Picamera2()
             preview_config = cam.create_preview_configuration(
-                main={"size": (1920, 1080)}
+                main={"size": (1920, 1080)},
+                transform=CAMERA_TRANSFORM,
             )
             cam.configure(preview_config)
             print("[init] Camera initialized")
