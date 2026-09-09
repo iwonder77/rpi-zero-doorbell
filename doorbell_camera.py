@@ -97,7 +97,7 @@ picam2 = init_camera()
 # --------------------
 # Button setup
 # --------------------
-button = Button(BUTTON_GPIO, pull_up=False, bounce_time=0.05)
+button = Button(BUTTON_GPIO, pull_up=None, bounce_time=0.05)
 
 
 # --------------------
