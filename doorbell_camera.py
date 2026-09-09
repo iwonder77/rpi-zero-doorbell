@@ -131,27 +131,38 @@ def activate_camera():
     try:
         picam2.start_preview(Preview.DRM, width=1920, height=1080)
         picam2.start()
-        activation_timestamp = time.monotonic()
-        camera_active = True
-        print("[main] Camera active")
     except Exception as e:
-        print(f"[main] ERROR starting camera: {e}")
-        camera_active = False
+        # Do NOT limp on. start_preview() may have succeeded before start()
+        # failed, leaving a preview we can never clear. Exiting here hands
+        # the problem to systemd, which gives us a clean process in 2s --
+        # which is invisible to a visitor. A wedged preview is a service call
+        print(f"[main] FATAL: could not start camera: {e}")
+        try:
+            picam2.stop_preview()
+        except Exception:
+            pass
+        raise SystemExit(1)
+
+    activation_timestamp = time.monotonic()
+    camera_active = True
+    print("[main] Camera active")
 
 
 def deactivate_camera():
     # stop camera and preview
     global camera_active
-
     print("[main] Deactivating camera...")
+
     try:
         picam2.stop()
         picam2.stop_preview()
     except Exception as e:
-        print(f"[main] ERROR stopping camera: {e}")
-    finally:
+        print(f"[main] FATAL: could not stop camera cleanly: {e}")
         camera_active = False
-        print("[main] Camera inactive")
+        raise SystemExit(1)
+
+    camera_active = False
+    print("[main] Camera inactive")
 
 
 # --------------------
@@ -195,8 +206,14 @@ finally:
     print("\n" + "=" * 50)
     print("Shutting down...")
     if camera_active:
-        deactivate_camera()
+        try:
+            deactivate_camera()
+        except SystemExit:
+            pass  # already on the way out
     if picam2 is not None:  # may be None if we were told to stop mid-init
-        picam2.close()
+        try:
+            picam2.close()
+        except Exception as e:
+            print(f"[shutdown] error closing camera: {e}")
     print("Clean shutdown complete.")
     print("=" * 50)
