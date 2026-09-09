@@ -108,10 +108,6 @@ def on_button_pressed():
     operations here, only set flags
     """
     global pending_activation
-    if camera_active or pending_activation:
-        # ignore button presses while already active or about to be
-        return
-
     print("[callback] Button pressed - setting pending flag")
     pending_activation = True
 
@@ -191,9 +187,10 @@ try:
         daemon.notify("WATCHDOG=1")
 
         # PENDING -> ACTIVE state transition
-        if pending_activation and not camera_active:
+        if pending_activation:
             pending_activation = False  # clear pending flag first, then activate
-            activate_camera()
+            if not camera_active:
+                activate_camera()
 
         # ACTIVE -> IDLE (timeout)
         if camera_active:
