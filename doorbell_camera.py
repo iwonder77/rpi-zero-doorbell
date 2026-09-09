@@ -9,7 +9,9 @@ hardware:
     - Raspberry Pi Zero 2W
     - Arducam IMX708 12MP 75D (SKU: B0312)
     - Acer 15.6" Monitor
-    - Momentary arcade push button wired to GPIO_17 and GND (N.O.)
+    - Momentary arcade push button wired to GPIO_17 and GND (N.O.), with an
+      EXTERNAL pull-up to 3V3 (see schematic). The pin FLOATS without it.
+      Hence pull_up=None (no internal resistor) + active_state=False (pressed = LOW).
 notes:
     gpiozero's button callbacks run in a BACKGROUND THREAD, not the main thread
     QT (used by Preview.QTGL to open preview window) requires all GUI operations on the MAIN THREAD
@@ -36,7 +38,8 @@ BUTTON_GPIO = 17
 ACTIVE_DURATION = 7.0  # num of seconds camera stays on
 POLL_INTERVAL = 0.1  # main loop cycle time in seconds
 CAMERA_INIT_RETRY_SEC = 2.0  # wait between camera init attempts at startup
-# Camera is mounted upside down due to physical constraints in the exhibit houing, so flip
+BUTTON_STUCK_WARN_SEC = 30.0  # warn if the button never releases (jammed?)
+# Camera is mounted upside down due to physical constraints in the exhibit housing, so flip
 # both axes with hflip+vflip == 180 deg rotation, and the IMX708 does it in the sensor
 # for free (Transform(rotation=180) is equivalent)
 CAMERA_TRANSFORM = Transform(hflip=1, vflip=1)
@@ -48,14 +51,27 @@ camera_active = False
 pending_activation = False  # flag set by the button press callback
 activation_timestamp = 0.0
 shutdown_requested = False
+shutdown_signum = None  # set by the signal handler, logged by the main thread
+
+# jammed-button health check state
+button_held_since = None
+button_stuck_warned = False
 
 
 # --------------------
 # Signal handling
 # --------------------
 def handle_shutdown(signum, frame):
-    global shutdown_requested
-    print(f"\nReceived signal {signum}, requesting shutdown...")
+    """
+    IMPORTANT: signal handlers run in the MAIN thread, between bytecodes. If a
+    signal lands while the main thread is mid-print(), doing I/O here re-enters
+    a lock that thread already holds -- CPython raises
+    'RuntimeError: reentrant call inside <_io.BufferedWriter>'. So this does
+    exactly what on_button_pressed() does: sets a flag and nothing else. The
+    main loop logs it on the way out.
+    """
+    global shutdown_requested, shutdown_signum
+    shutdown_signum = signum
     shutdown_requested = True
 
 
@@ -93,11 +109,17 @@ def init_camera():
         except Exception as e:
             print(f"[init] ERROR initializing camera: {e}")
             print(f"[init] Retrying in {CAMERA_INIT_RETRY_SEC:.1f}s...")
+            # Cheap insurance: the watchdog clock is not supposed to be running
+            # until we send READY=1, but pinging here costs nothing and removes
+            # any dependence on that ordering detail.
+            daemon.notify("WATCHDOG=1")
             time.sleep(CAMERA_INIT_RETRY_SEC)
     return None  # shutdown requested before the camera ever came up
 
 
 picam2 = init_camera()
+if picam2 is None:
+    raise SystemExit(0)  # told to stop before the camera ever appeared
 
 # --------------------
 # Button setup
@@ -192,9 +214,13 @@ try:
         # nastier case where the process is alive but frozen.
         daemon.notify("WATCHDOG=1")
 
-        # PENDING -> ACTIVE state transition
+        # Consume the press unconditionally, THEN decide. A press that lands during
+        # activate_camera()'s ~500ms startup would otherwise sit unread and replay
+        # itself when the show times out - the camera switching on with nobody there
+        # Presses during a show are deliberately discarded: every show is exactly
+        # ACTIVE_DURATION
         if pending_activation:
-            pending_activation = False  # clear pending flag first, then activate
+            pending_activation = False
             if not camera_active:
                 activate_camera()
 
@@ -204,19 +230,40 @@ try:
             if elapsed >= ACTIVE_DURATION:
                 deactivate_camera()
 
+        # Health check: when_pressed is EDGE triggered, so a physically jammed
+        # button produces no further events -- the exhibit goes dead silently
+        # while the service still looks perfectly healthy in systemctl status.
+        # Say so in the journal instead, so it is one 'journalctl' away.
+        if button.is_pressed:
+            if button_held_since is None:
+                button_held_since = time.monotonic()
+            elif not button_stuck_warned and (
+                time.monotonic() - button_held_since > BUTTON_STUCK_WARN_SEC
+            ):
+                print(
+                    f"[health] WARNING: button held >{BUTTON_STUCK_WARN_SEC:.0f}s "
+                    "- jammed button or shorted wiring?"
+                )
+                button_stuck_warned = True
+        else:
+            button_held_since = None
+            button_stuck_warned = False
+
         time.sleep(POLL_INTERVAL)
 finally:
     print("\n" + "=" * 50)
-    print("Shutting down...")
+    if shutdown_signum is not None:
+        print(f"Shutting down (received signal {shutdown_signum})...")
+    else:
+        print("Shutting down...")
     if camera_active:
         try:
             deactivate_camera()
         except SystemExit:
             pass  # already on the way out
-    if picam2 is not None:  # may be None if we were told to stop mid-init
-        try:
-            picam2.close()
-        except Exception as e:
-            print(f"[shutdown] error closing camera: {e}")
+    try:
+        picam2.close()
+    except Exception as e:
+        print(f"[shutdown] error closing camera: {e}")
     print("Clean shutdown complete.")
     print("=" * 50)
