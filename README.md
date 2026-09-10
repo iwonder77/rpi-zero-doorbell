@@ -4,6 +4,17 @@
 
 This repository holds the firmware (python script), systemd service file, and steps for setting up a Raspberry Pi Zero 2W for the Doorbell interactive in the Smarthome exhibit of Kidopolis at Thanksgiving Point's Museum of Natural Curiosity.
 
+### Privacy
+
+The exhibit shows a **live preview only**. No frames are ever written to disk,
+nothing is recorded, and nothing is transmitted. If a visitor or parent asks,
+that is the answer.
+
+### Network
+
+The exhibit needs **no network to run**. WiFi is only used for SSH access,
+package and firmware updates (like in first-time setup), and clock sync. If the museum WiFi is down for a week the doorbell keeps working perfectly.
+
 ## Hardware
 
 - Raspberry Pi Zero 2W
@@ -106,3 +117,80 @@ wget https://raw.githubusercontent.com/iwonder77/rpi-zero-doorbell/refs/heads/ma
     - when prompted _"Would you like the boot partition to be write-protected?"_, answer **yes** (the boot partition is never written during normal operation, so locking it closes the last path to SD corruption)
     - reboot when prompted
     - ⚠️ **IMPORTANT:** once the overlay is enabled, the OS root and boot partition are read-only — no changes you make (config edits, script updates, package installs, `apt upgrade`) will survive a reboot. To make future changes you must re-run `sudo raspi-config`, **disable** the Overlay File System (and boot write-protection), reboot, make your changes, then re-enable the overlay and reboot again.
+
+## Making Changes to a Deployed Pi
+
+When a deployed Pi is locked down with the overlay filesystem, you **cannot** just edit the files and reboot - your changes will silently vanish on the next startup. Additionally, changes should be made by pulling from the source of truth, this repo. Never hand-edit the Pi since that can cause sync issues. Here's how to make edits to a deployed Pi:
+
+### 1. Check the lock state
+
+```bash
+findmnt -n -o SOURCE /  # "overlay" = locked , "/dev/mmcblk0p2" = unlocked
+mount | grep boot       # look for "ro" (locked) or "rw" (unlocked)
+```
+
+### 2. Unlock (if locked)
+
+`sudo raspi-config` → _Performance Options_ → _Overlay File System_
+
+- enable overlay? → **No**
+- write-protect boot? → **No**
+
+Reboot, then re-run step 1 and confirm you see `/dev/mmcblk0p2` and `rw`. Do not continue until you do.
+
+### 3. Push from your computer
+
+`git push origin main` once your done with the changes to the python script or the service file. The Pi will download from GitHub.
+
+### 4. Stop the service and download the new files
+
+```bash
+sudo systemctl stop doorbell.service   # frees the camera for manual testing
+
+cd ~/doorbell_camera
+wget -O doorbell_camera.py
+https://raw.githubusercontent.com/iwonder77/rpi-zero-doorbell/refs/heads/main/doorbell_camera.py
+
+cd ~
+wget -O doorbell.service
+https://raw.githubusercontent.com/iwonder77/rpi-zero-doorbell/refs/heads/main/doorbell.service
+```
+
+Couple of notes:
+
+- the `-O` flag overwrites the current file
+- confirm you got the new version by grepping for something you just added
+
+### 5. Test by hand, then as a service
+
+```bash
+python3 ~/doorbell_camera/doorbell_camera.py    # Ctrl+C to quit
+```
+
+Then:
+
+```bash
+  sudo cp ~/doorbell.service /etc/systemd/system/
+  sudo systemctl daemon-reload                              # systemd caches unit
+                                                            # files; without this it
+                                                            # keeps using the old one
+  systemd-analyze verify /etc/systemd/system/doorbell.service   # no output = OK
+  sudo systemctl start doorbell.service
+  systemctl status doorbell.service                         # want "active (running)"
+  journalctl -u doorbell.service -f                         # Ctrl+C stops WATCHING,
+                                                            # not the service
+```
+
+### 7. Re-lock
+
+`sudo raspi-config` → _Performance Options_ → _Overlay File System_ → **Yes**
+to both prompts. Reboot. Confirm `findmnt -n -o SOURCE /` says `overlay`.
+
+Test the button once more in the locked state — that's the configuration that
+actually ships.
+
+### Rollback
+
+- **Unlocked:** copy the files back from `~/backup/`, `daemon-reload`, restart.
+- **Locked:** pull the power. Everything since the last boot is discarded
+  automatically. That's the entire point of the overlay.
