@@ -9,9 +9,9 @@ This repository holds the firmware (python script), systemd service file, and st
 - Raspberry Pi Zero 2W
 - [Arducam IMX708 12MP](https://docs.arducam.com/Raspberry-Pi-Camera/Native-camera/12MP-IMX708/#products-list) camera (SKU: B0312)
 - Acer 15.6" Monitor
-- Arcade button + ESD protection circuit
+- Arcade button (N.O.) + Pull-up, RC and ESD protection circuit
 
-## Setup Steps
+## First-Time Setup
 
 1. Flash a reliable SD card with Raspberry Pi OS Lite (64-bit) using the [Raspberry Pi Imager](https://www.raspberrypi.com/software/). Ensure the following configuration settings are set:
    - hostname, username=`doorbell`, and password (write these down somewhere)
